@@ -158,7 +158,7 @@ static public class AssignmentPart1
 //  This will enable the needed UI/function calls for your to proceed with your assignment.
 static public class AssignmentConfiguration
 {
-    public const int PartOfAssignmentThatIsInDevelopment = 1;
+    public const int PartOfAssignmentThatIsInDevelopment = 2;
 }
 
 /*
@@ -196,9 +196,54 @@ Good luck, journey well.
 
 static public class AssignmentPart2
 {
+    static int lastIndexUsed;
+
+    static List<string> partyNames;
+    static LinkedList<NameAndIndex> nameAndIndices;
+
+    const int PartyCharacterSaveDataSignifier = 0;
+    const int PartyCharacterEquipmentSaveDataSignifier = 1;
+    const int LastUsedIndexSignifier = 1;
+    const int IndexAndNameSignifier = 2;
+
+    const string IndexFilePath = "indices.txt";
 
     static public void GameStart()
     {
+        Debug.Log("Game Starting");
+
+        nameAndIndices = new LinkedList<NameAndIndex>();
+
+        if(File.Exists(Application.dataPath + Path.DirectorySeparatorChar + IndexFilePath))
+        {
+            StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + IndexFilePath);
+
+            string line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                Debug.Log(line);
+
+                string[] csv = line.Split(',');
+                int signifier = int.Parse(csv[0]);
+
+                if(signifier == LastUsedIndexSignifier)
+                {
+                    lastIndexUsed = int.Parse(csv[1]);
+                }
+                else if(signifier == IndexAndNameSignifier)
+                {
+                    nameAndIndices.AddLast(new NameAndIndex(int.Parse(csv[1]), csv[2]));
+                }
+            }
+
+        }
+
+        partyNames = new List<string>();
+
+        foreach (NameAndIndex nameAndIndex in nameAndIndices)
+        {
+            partyNames.Add(nameAndIndex.name);
+        }
 
         GameContent.RefreshUI();
 
@@ -206,34 +251,151 @@ static public class AssignmentPart2
 
     static public List<string> GetListOfPartyNames()
     {
-        return new List<string>() {
-            "sample 1",
-            "sample 2",
-            "sample 3"
-        };
-
+        return partyNames;
     }
 
     static public void LoadPartyDropDownChanged(string selectedName)
     {
+        GameContent.partyCharacters.Clear();
+
+        int indexToLoad = -1;
+
+        foreach (NameAndIndex nameAndIndex in nameAndIndices)
+        {
+            if (nameAndIndex.name == selectedName)
+                indexToLoad = nameAndIndex.index;
+        }
+
+        StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + indexToLoad + ".txt");
+
+        string line;
+        while ((line = sr.ReadLine()) != null)
+        {
+            Debug.Log(line);
+
+            string[] csv = line.Split(',');
+
+            int signifier = int.Parse(csv[0]);
+
+            if (signifier == PartyCharacterSaveDataSignifier)
+            {
+                PartyCharacter pc = new PartyCharacter(
+                                int.Parse(csv[1]),
+                                int.Parse(csv[2]),
+                                int.Parse(csv[3]),
+                                int.Parse(csv[4]),
+                                int.Parse(csv[5]),
+                                int.Parse(csv[6]));
+
+                GameContent.partyCharacters.AddLast(pc);
+            }
+            else if (signifier == PartyCharacterEquipmentSaveDataSignifier)
+            {
+                GameContent.partyCharacters.Last.Value.equipment.AddLast(int.Parse(csv[1]));
+            }
+
+        }
+
         GameContent.RefreshUI();
+        Debug.Log("Load " + selectedName);
     }
 
     static public void SavePartyButtonPressed()
     {
+        // Check if the party is unique
+        bool isUniqueName = true;
+
+        foreach (NameAndIndex nameAndIndex in nameAndIndices)
+        {
+            if (nameAndIndex.name == GameContent.GetPartyNameFromInput())
+            {
+                // Use this index to save party file
+                SaveParty(Application.dataPath + Path.DirectorySeparatorChar + nameAndIndex.index + ".txt");
+                isUniqueName = false;
+            }
+        }
+
+        // If party is unique, create a new file
+        if (isUniqueName)
+        {
+            lastIndexUsed++;
+            SaveParty(Application.dataPath + Path.DirectorySeparatorChar + lastIndexUsed + ".txt");
+            nameAndIndices.AddLast(new NameAndIndex(lastIndexUsed, GameContent.GetPartyNameFromInput()));
+        }
+
         GameContent.RefreshUI();
+        Debug.Log("Saving");
+
+        SaveIndexManagementFile();
     }
 
     static public void NewPartyButtonPressed()
     {
+        Debug.Log("Create New");
 
+        SaveIndexManagementFile();
     }
 
     static public void DeletePartyButtonPressed()
     {
+        Debug.Log("Delete Current");
+    }
+
+    static public void SaveIndexManagementFile()
+    {
+
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + IndexFilePath);
+
+        sw.WriteLine("1," + lastIndexUsed);
+
+        foreach(NameAndIndex nameAndIndex in nameAndIndices)
+        {
+            sw.WriteLine("2," + nameAndIndex.index + "," + nameAndIndex.name);
+        }
+
+        sw.Close();
+    }
+
+    static public void SaveParty(string fileName)
+    {
+
+        StreamWriter sw = new StreamWriter(fileName);
+
+        foreach (PartyCharacter pc in GameContent.partyCharacters)
+        {
+            // Debug.Log("PC class id == " + pc.classID);
+
+            sw.WriteLine(PartyCharacterSaveDataSignifier
+                + "," + pc.classID
+                + "," + pc.health
+                + "," + pc.mana
+                + "," + pc.strength
+                + "," + pc.agility
+                + "," + pc.wisdom);
+
+            foreach (int equip in pc.equipment)
+            {
+                sw.WriteLine(PartyCharacterEquipmentSaveDataSignifier + "," + equip);
+            }
+
+        }
+
+        sw.Close();
 
     }
 
+}
+
+public class NameAndIndex
+{
+    public string name;
+    public int index;
+
+    public NameAndIndex(int Index, string Name)
+    {
+        index = Index;
+        name = Name;
+    }
 }
 
 #endregion
